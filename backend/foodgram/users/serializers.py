@@ -1,7 +1,6 @@
 from django.contrib.auth import get_user_model
 from djoser.serializers import UserCreateSerializer, UserSerializer
-from rest_framework import serializers
-
+from rest_framework import exceptions, serializers
 from .models import Subscription
 from recipes.models import Recipe
 
@@ -19,7 +18,7 @@ class CustomUserSerializer(UserSerializer):
         if user.is_anonymous:
             return False
 
-        return Subscription.objects.filter(user=user, author=obj).exists()
+        return user.subscribes.filter(author=obj).exists()
 
     class Meta:
         model = User
@@ -47,7 +46,7 @@ class SubscriptionSerializer(CustomUserSerializer):
         return ShortRecipeSerializer
 
     def get_recipes(self, obj):
-        author_recipes = Recipe.objects.filter(author=obj)
+        author_recipes = obj.recipes.all()
 
         if 'recipes_limit' in self.context.get('request').GET:
             recipes_limit = self.context.get('request').GET['recipes_limit']
@@ -64,7 +63,21 @@ class SubscriptionSerializer(CustomUserSerializer):
         return []
 
     def get_recipes_count(self, obj):
-        return Recipe.objects.filter(author=obj).count()
+        return obj.recipes.count()
+
+    def validate(self, data):
+        user = self.context['request'].user
+        author = self.instance
+        if user == author:
+            raise exceptions.ValidationError(
+                'Подписка на самого себя запрещена.'
+            )
+        if Subscription.objects.filter(
+            user=user,
+            author=author
+        ).exists():
+            raise exceptions.ValidationError('Подписка уже оформлена.')
+        return data
 
     class Meta:
         model = User

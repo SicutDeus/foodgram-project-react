@@ -26,7 +26,6 @@ class Recipe(models.Model):
         help_text='Игредиенты для рецепта',
     )
     cooking_time = models.PositiveSmallIntegerField(
-        validators=(MinValueValidator(1),),
         verbose_name='Время приготовления (в минутах)',
         help_text='Время приготовления (в минутах)',
     )
@@ -74,11 +73,11 @@ class RecipeIngredients(models.Model):
         verbose_name='Ингредиент'
     )
     amount = models.PositiveSmallIntegerField(
-        validators=(MinValueValidator(1),),
         verbose_name='Количество'
     )
 
     class Meta:
+        ordering = ('recipe', )
         verbose_name = 'ингредиенты'
         verbose_name_plural = 'Ингредиенты'
 
@@ -99,6 +98,7 @@ class RecipeTags(models.Model):
     )
 
     class Meta:
+        ordering = ('recipe',)
         verbose_name = 'теги'
         verbose_name_plural = 'теги'
 
@@ -150,6 +150,7 @@ class ShoppingCart(models.Model):
     )
 
     class Meta:
+        ordering = ('recipe',)
         verbose_name = 'список покупок'
         verbose_name_plural = 'cписок покупок'
 

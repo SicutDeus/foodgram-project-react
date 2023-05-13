@@ -26,12 +26,9 @@ class CustomUserViewSet(UserViewSet):
     )
     def subscriptions(self, request):
         user = self.request.user
-        user_subscriptions = user.subscribes.all()
-        authors = [item.author.id for item in user_subscriptions]
-        queryset = User.objects.filter(pk__in=authors)
+        queryset = User.objects.filter(subscribes__user=user).all()
         paginated_queryset = self.paginate_queryset(queryset)
         serializer = self.get_serializer(paginated_queryset, many=True)
-
         return self.get_paginated_response(serializer.data)
 
     @action(
@@ -43,38 +40,20 @@ class CustomUserViewSet(UserViewSet):
         user = self.request.user
         author = get_object_or_404(User, pk=id)
 
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         if self.request.method == 'POST':
-            if user == author:
-                raise exceptions.ValidationError(
-                    'Подписка на самого себя запрещена.'
-                )
-            if Subscription.objects.filter(
-                user=user,
-                author=author
-            ).exists():
-                raise exceptions.ValidationError('Подписка уже оформлена.')
-
             Subscription.objects.create(user=user, author=author)
-            serializer = self.get_serializer(author)
-
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         if self.request.method == 'DELETE':
-            if not Subscription.objects.filter(
-                user=user,
-                author=author
-            ).exists():
-                raise exceptions.ValidationError(
-                    'Подписка не была оформлена, либо уже удалена.'
-                )
-
             subscription = get_object_or_404(
                 Subscription,
                 user=user,
                 author=author
             )
             subscription.delete()
-
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         return Response(status=status.HTTP_405_METHOD_NOT_ALLOWED)
