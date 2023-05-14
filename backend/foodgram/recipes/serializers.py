@@ -1,5 +1,5 @@
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.shortcuts import get_object_or_404
 from drf_extra_fields.fields import Base64ImageField
 from rest_framework import exceptions, serializers
@@ -12,8 +12,6 @@ from users.serializers import CustomUserSerializer
 
 User = get_user_model()
 
-MAX_VALUE = 32000
-MIN_VALUE = 1
 
 class RecipeIngredientsSerializer(serializers.ModelSerializer):
     id = serializers.SerializerMethodField(method_name='get_id')
@@ -21,7 +19,7 @@ class RecipeIngredientsSerializer(serializers.ModelSerializer):
     measurement_unit = serializers.SerializerMethodField(
         method_name='get_measurement_unit'
     )
-    amount = serializers.IntegerField(min_value=1)
+
     def get_id(self, obj):
         return obj.ingredient.id
 
@@ -38,8 +36,18 @@ class RecipeIngredientsSerializer(serializers.ModelSerializer):
 
 class CreateUpdateRecipeIngredientsSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField()
-    amount = serializers.IntegerField(min_value=MIN_VALUE, max_value=MAX_VALUE)
-
+    amount = serializers.IntegerField(
+        validators=(
+            MinValueValidator(
+                1,
+                message='Количество ингредиента должно быть 1 или более.'
+            ),
+            MaxValueValidator(
+                32000,
+                message='Количество ингредиента должно быть не более 32000.'
+            ),
+        )
+    )
 
     class Meta:
         model = Ingredient
@@ -58,12 +66,18 @@ class RecipeSerializer(serializers.ModelSerializer):
     is_in_shopping_cart = serializers.SerializerMethodField(
         method_name='get_is_in_shopping_cart'
     )
-    cooking_time = serializers.IntegerField(
-        min_value=MIN_VALUE,
-        max_value=MAX_VALUE,
-        help_text='Время приготовления (в минутах)',
-    )
-
+    cooking_time = serializers.IntegerField( 
+        validators=(
+            MinValueValidator(
+                1,
+                message='Время приготовления должно быть 1 или более.'
+            ),
+            MaxValueValidator(
+                32000,
+                message='Время приготовления должно быть не более 32000.'
+            ),
+        )
+    ) 
     def get_ingredients(self, obj):
         ingredients = RecipeIngredients.objects.filter(recipe=obj)
         serializer = RecipeIngredientsSerializer(ingredients, many=True)
@@ -100,8 +114,16 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
     ingredients = CreateUpdateRecipeIngredientsSerializer(many=True)
     image = Base64ImageField()
     cooking_time = serializers.IntegerField(
-        min_value=MIN_VALUE,
-        max_value=MAX_VALUE,
+        validators=(
+            MinValueValidator(
+                1,
+                message='Время приготовления должно быть 1 или более.'
+            ),
+            MaxValueValidator(
+                32000,
+                message='Время приготовления должно быть не более 32000.'
+            ),
+        )
     )
 
     def validate_tags(self, value):
@@ -117,11 +139,13 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
             raise exceptions.ValidationError(
                 'Нужно добавить хотя бы один ингредиент.'
             )
+
         ingredients = [item['id'] for item in value]
-        if len(set(ingredients)) != len(ingredients):
-            raise exceptions.ValidationError(
-                'У рецепта не может быть два одинаковых ингредиента.'
-            )
+        for ingredient in ingredients:
+            if ingredients.count(ingredient) > 1:
+                raise exceptions.ValidationError(
+                    'У рецепта не может быть два одинаковых ингредиента.'
+                )
 
         return value
 
@@ -133,20 +157,15 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         recipe = Recipe.objects.create(author=author, **validated_data)
         recipe.tags.set(tags)
 
-        recipe_ingredients = []
         for ingredient in ingredients:
             amount = ingredient['amount']
-        ingredient = get_object_or_404(Ingredient, pk=ingredient['id'])
+            ingredient = get_object_or_404(Ingredient, pk=ingredient['id'])
 
-        recipe_ingredients.append(
-            RecipeIngredients(
+            RecipeIngredients.objects.create(
                 recipe=recipe,
                 ingredient=ingredient,
                 amount=amount
             )
-        )
-
-        RecipeIngredients.objects.bulk_create(recipe_ingredients)
 
         return recipe
 
@@ -189,26 +208,3 @@ class ShortRecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ('id', 'name', 'image', 'cooking_time')
-
-
-class AddOrRemoveSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = None
-        fields = ('user', 'recipe')
-
-    def __init__(self, *args, **kwargs):
-        self.Meta.model = kwargs.pop('model')
-        super().__init__(*args, **kwargs)
-
-    def validate(self, data):
-        user = data['user']
-        recipe = data['recipe']
-        model = self.Meta.model
-        error_message = None
-        if model == Favorite:
-            error_message = 'Рецепт уже в избранном.'
-        elif model == ShoppingCart:
-            error_message = 'Рецепт уже в списке покупок.'
-        if model.objects.filter(user=user, recipe=recipe).exists():
-            raise serializers.ValidationError(error_message)
-        return data
