@@ -153,7 +153,8 @@ docker-compose exec backend python manage.py createsuperuser
 docker-compose exec backend python manage.py collectstatic --no-input
 ```
 
-Теперь доступность проекта можно проверить по адресу [http://localhost/](http://localhost/)
+Теперь доступность проекта можно проверить по адресу [http://130.193.55.78/](http://130.193.55.78/)
+Админка - username : admin / password : admin
 
 ---
 ## 5. Заполнение базы данных <a id=5></a>
@@ -165,7 +166,7 @@ docker-compose exec backend python manage.py fill_ingredients_from_csv --path da
 ```
 
 Также необходимо заполнить базу данных тегами (или другими данными).  
-Для этого требуется войти в [админ-зону](http://localhost/admin/)
+Для этого требуется войти в [админ-зону](http://130.193.55.78/admin/)
 проекта под логином и паролем администратора (пользователя, созданного командой createsuperuser).
 
 ---
